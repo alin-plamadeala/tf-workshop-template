@@ -1,0 +1,46 @@
+name: Deploy to GCP
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  Deploy-To-GCP:
+    permissions:
+      contents: "read"
+      id-token: "write"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: "actions/checkout@v3"
+
+      - id: "auth"
+        name: "Authenticate to Google Cloud"
+        uses: "google-github-actions/auth@v1"
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SA }}
+
+      - name: "Setup Terraform"
+        id: "setup-tf"
+        uses: "hashicorp/setup-terraform@v2"
+        with:
+          terraform_version: 1.3.5
+
+      - name: "Extract branch name"
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_HEAD_REF})"
+        id: extract_branch
+
+      - name: "Terraform Init"
+        working-directory: "./infra/environments/${{ steps.extract_branch.outputs.branch }}"
+        run: "terraform init"
+
+      - name: "Terraform Plan"
+        id: plan
+        working-directory: "./infra/environments/${{ steps.extract_branch.outputs.branch }}"
+        run: "terraform plan -no-color"
+
+      - name: "Terraform Apply"
+        id: apply
+        working-directory: "./infra/environments/${{ steps.extract_branch.outputs.branch }}"
+        run: "terraform apply -auto-approve"
+
